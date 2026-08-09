@@ -1,6 +1,8 @@
 from google import genai
+from google.genai import types
 from django.conf import settings
 from .tools import get_order_details, get_refund_history, check_delivery_status
+from .models import Conversation, Message, AgentLog
 
 ## Initialize the client
 client = genai.Client(
@@ -157,3 +159,30 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
 
 
 ## Agent Loop  -->  while loop that loops until the task is done.
+
+def run_support_agent(user_message, conversation_id):
+    conv = Conversation.objects.get(id=conversation_id)
+
+    conversation_messages= []
+    for msg in conv.message.order_by("created_at"):
+        conversation_messages.append({
+            "role": "model" if msg.role == "agent" else msg.role,
+            "content": msg.content
+        }
+        )
+    ## Send this conversation to LLM
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            {"role": msg["role"], "parts": [{"text": msg["content"]}]}
+            for msg in conversation_messages
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=SUPPORT_SYSTEM_PROMPT,
+            max_output_tokens=1024,
+            # tools=SUPPORT_TOOLS,   # <-- also add this to actually give the model tools
+        ),
+    )
+
+    print('llm response ==>', response.text)
+    return response.text

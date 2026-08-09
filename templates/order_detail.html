@@ -403,8 +403,6 @@
     const input = document.getElementById("chat-input");
     const message = input.value.trim();
 
-    console.log('message==>', message)
-
     // don't send empty message
     if(!message) return;
 
@@ -413,7 +411,7 @@
     input.value = "";
     input.disabled = true;
 
-    const typingTimeout = setTimeout(() => showTyping(), 1000); // show typing after 2 seconds
+    const typingTimeout = setTimeout(() => showTyping(), 2000); // show typing after 2 seconds
 
     // send message to django view
     try{
@@ -425,6 +423,8 @@
         },
         body: JSON.stringify({message: message})
       });
+
+     
 
       const data = await response.json()
       hideTyping();
