@@ -7,7 +7,7 @@ client = genai.Client(
 
 response = client.models.generate_content(
     model=config("GEMINI_MODEL"),
-    contents="Explain how AI works in a few words in Engineering Tasks?"
+    contents="Tell me latest discoveries with Django framework? Any new updates?"
 )
 
 print(response.text)
