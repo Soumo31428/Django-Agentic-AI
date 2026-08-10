@@ -374,7 +374,8 @@
   }
 
   function hideTyping(){
-    document.getElementById("typing-indicator").remove();
+    const el = document.getElementById("typing-indicator");
+    if (el) el.remove();
   }
 
   function showChat(){
@@ -424,22 +425,25 @@
         body: JSON.stringify({message: message})
       });
 
-     
+      const data = await response.json();
 
-      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Something went wrong");
+      }
+
       hideTyping();
       appendMessage(data.reply, "agent");
       input.disabled = false;
       input.focus();
     }catch(error){
       console.error("Error: ", error)
-      appendMessage("Sorry, something went wrong", "agent")
+      hideTyping();
+      appendMessage(error.message || "Sorry, something went wrong", "agent")
       input.disabled = false;
       input.focus();
     } finally{
       clearTimeout(typingTimeout);
       hideTyping();
-      
     }
   }
 

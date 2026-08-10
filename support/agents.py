@@ -168,7 +168,7 @@ def run_support_agent(user_message, conversation_id):
         conversation_messages.append({
             "role": "model" if msg.role == "agent" else msg.role,
             "content": msg.content
-        }
+            }
         )
     ## Send this conversation to LLM
     response = client.models.generate_content(
@@ -183,6 +183,7 @@ def run_support_agent(user_message, conversation_id):
             # tools=SUPPORT_TOOLS,   # <-- also add this to actually give the model tools
         ),
     )
+    print("response ====>", response.text)
+    final_text = response.text
 
-    print('llm response ==>', response.text)
-    return response.text
+    return final_text
