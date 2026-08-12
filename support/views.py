@@ -24,13 +24,13 @@ def chat(request, order_id):
 
         order = get_object_or_404(Order, id = order_id, user=request.user)
 
-        conversation, _ = Conversation.objects.get_or_create(user=request.user, order=order)
+        conversation, created = Conversation.objects.get_or_create(user=request.user, order=order)
 
         Message.objects.create(conversation=conversation, role="user", content = user_message)
 
         ## send user message and conversation to LLM
         try:
-            reply = run_support_agent(user_message, conversation.id)
+            reply = run_support_agent(user_message, conversation.id,order.id, request.user.id)
         except Exception as e:
             return JsonResponse({"error": f"Agent error: {e}"}, status=500)
         ## store the LLM reply

@@ -2,9 +2,9 @@ from orders.models import Order, RefundRequest
 from django.utils import timezone
 from .tracking_data import DELIVERY_DATA
 
-def get_order_details(order_id):
+def get_order_details(order_id: int) -> dict:
     try:
-        order = Order.get(id=order_id)
+        order = Order.objects.get(id=order_id)
         return {
             "order_id": order.id,
             "product_name": order.product_name,
@@ -20,7 +20,7 @@ def get_order_details(order_id):
         return {"error": f"Order #{order_id} not found"}
 
 
-def get_refund_history(user_id):
+def get_refund_history(user_id: int) -> dict:
     refunds = RefundRequest.objects.filter(user_id=user_id).order_by("-created_at")
     history = []
     for refund in refunds:
@@ -36,7 +36,7 @@ def get_refund_history(user_id):
         "history": history,
     }
 
-def check_delivery_status(tracking_namber, carrier):
+def check_delivery_status(tracking_number: str, carrier: str) -> dict:
     default_response = {
         "status": "Unknown",
         "last_location": "Tracking info unavailable",
@@ -44,7 +44,7 @@ def check_delivery_status(tracking_namber, carrier):
         "estimated_delivery": "Contact carrier directly",
         "delay_reason": "No updates from carrier",
     } 
-    result = DELIVERY_DATA.get(tracking_namber, default_response)
-    result["tracking_number"] = tracking_namber
+    result = DELIVERY_DATA.get(tracking_number, default_response)
+    result["tracking_number"] = tracking_number
     result["carrirer"] = carrier
     return result

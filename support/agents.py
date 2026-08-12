@@ -39,89 +39,97 @@ Important rules:
 """
 
 ## SUPPORT TOOLS     -->>    Tools schemas, that AI agents will read
+from google.genai import types
+
 SUPPORT_TOOLS = [
-    {
-        "name": "get_order_details",
-        "description": "Fetch complete order details including status, carrier, tracking number and days since order was placed. Use this when customer mentions their order or complains about delivery.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "order_id": {
-                    "type": "integer",
-                    "description": "The order ID to look up"
-                }
-            },
-            "required": ["order_id"]
-        }
-    },
-
-    {
-        "name": "get_refund_history",
-        "description": "Get complete refund history for a user. Use this before making any refund related decisions.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "description": "The user ID to check refund history for"
-                }
-            },
-            "required": ["user_id"]
-        }
-    },
-
-    {
-        "name": "check_delivery_status",
-        "description": "Check current delivery status using tracking number and carrier. Use this when customer complains about delayed or missing delivery.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "tracking_number": {
-                    "type": "string",
-                    "description": "The shipment tracking number"
-                },
-                "carrier": {
-                    "type": "string",
-                    "description": "The carrier name for example BlueDart or Delhivery"
-                }
-            },
-            "required": ["tracking_number", "carrier"]
-        }
-    },
-
-    {
-        "name": "escalate_to_manager",
-        "description": "Escalate the case to manager for refund decision. Always include customer's user_id in the case summary so manager can assess fraud risk accurately.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "case_summary": {
-                    "type": "string",
-                    "description": "Complete case summary. Must include: customer user_id, order details, refund history and complaint. Format: Start with 'Customer User ID: X' on the first line."
-                }
-            },
-            "required": ["case_summary"]
-        }
-    },
-
-    {
-        "name": "search_knowledge_base",
-        "description": "Search CoolBreeze AC company documents including refund policy, warranty policy, and product FAQs. Use this when customer asks about company policies, warranty coverage, warranty claims, refund eligibility, or any general product information that requires accurate company documentation.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The search query to find relevant information from company documents. Be specific — for example 'refund eligibility within 30 days' instead of just 'refund'."
-                }
-            },
-            "required": ["query"]
-        }
-    }
-
-
+    types.Tool(
+        function_declarations=[
+            types.FunctionDeclaration(
+                name="get_order_details",
+                description="Fetch complete order details including status, carrier, tracking number and days since order was placed. Use this when customer mentions their order or complains about delivery.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "order_id": types.Schema(
+                            type="INTEGER",
+                            description="The order ID to look up"
+                        )
+                    },
+                    required=["order_id"]
+                )
+            ),
+            types.FunctionDeclaration(
+                name="get_refund_history",
+                description="Get complete refund history for a user. Use this before making any refund related decisions.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "user_id": types.Schema(
+                            type="INTEGER",
+                            description="The user ID to check refund history for"
+                        )
+                    },
+                    required=["user_id"]
+                )
+            ),
+            types.FunctionDeclaration(
+                name="check_delivery_status",
+                description="Check current delivery status using tracking number and carrier. Use this when customer complains about delayed or missing delivery.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "tracking_number": types.Schema(
+                            type="STRING",
+                            description="The shipment tracking number"
+                        ),
+                        "carrier": types.Schema(
+                            type="STRING",
+                            description="The carrier name for example BlueDart or Delhivery"
+                        )
+                    },
+                    required=["tracking_number", "carrier"]
+                )
+            ),
+            types.FunctionDeclaration(
+                name="escalate_to_manager",
+                description="Escalate the case to manager for refund decision. Always include customer's user_id in the case summary so manager can assess fraud risk accurately.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "case_summary": types.Schema(
+                            type="STRING",
+                            description="Complete case summary. Must include: customer user_id, order details, refund history and complaint. Format: Start with 'Customer User ID: X' on the first line."
+                        )
+                    },
+                    required=["case_summary"]
+                )
+            ),
+            types.FunctionDeclaration(
+                name="search_knowledge_base",
+                description="Search CoolBreeze AC company documents including refund policy, warranty policy, and product FAQs. Use this when customer asks about company policies, warranty coverage, warranty claims, refund eligibility, or any general product information that requires accurate company documentation.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "query": types.Schema(
+                            type="STRING",
+                            description="The search query to find relevant information from company documents. Be specific — for example 'refund eligibility within 30 days' instead of just 'refund'."
+                        )
+                    },
+                    required=["query"]
+                )
+            )
+        ]
+    )
 ]
 
+
+
+# Delete the previous dictionary definitions. Use this exact structure:
+SUPPORT_TOOLS_new = [
+    get_order_details,
+    get_refund_history,
+    check_delivery_status,
+]
 
 
 ## execute_tool()  --> bridge between gemini and python functions
@@ -160,30 +168,50 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
 
 ## Agent Loop  -->  while loop that loops until the task is done.
 
-def run_support_agent(user_message, conversation_id):
+def run_support_agent(user_message, conversation_id, order_id, user_id):
+    # PHASE 1: Build conversational state from database
     conv = Conversation.objects.get(id=conversation_id)
 
+    # Format history strictly according to SDK requirements
     conversation_messages= []
     for msg in conv.message.order_by("created_at"):
         conversation_messages.append({
-            "role": "model" if msg.role == "agent" else msg.role,
-            "content": msg.content
-            }
+            "role": "model" if msg.role == "agent" else "user",
+            "parts": [{"text": msg.content}]
+        })
+        
+    while True:
+        response = client.models.generate_content(
+            model=model,
+            contents=conversation_messages,
+            config=types.GenerateContentConfig(
+                system_instruction=SUPPORT_SYSTEM_PROMPT + f"\n\nContext: This conversation is about Order #{order_id}, user #{user_id}",
+                max_output_tokens=1024,
+                tools=SUPPORT_TOOLS,
+            ),
         )
-    ## Send this conversation to LLM
-    response = client.models.generate_content(
-        model=model,
-        contents=[
-            {"role": msg["role"], "parts": [{"text": msg["content"]}]}
-            for msg in conversation_messages
-        ],
-        config=types.GenerateContentConfig(
-            system_instruction=SUPPORT_SYSTEM_PROMPT,
-            max_output_tokens=1024,
-            # tools=SUPPORT_TOOLS,   # <-- also add this to actually give the model tools
-        ),
-    )
-    print("response ====>", response.text)
-    final_text = response.text
-
-    return final_text
+        
+        if response.function_calls:
+            # 1. Append model's tool call request to history
+            conversation_messages.append({
+                "role": "model",
+                "parts": response.parts
+            })
+            
+            # 2. Execute tools and append results
+            for call in response.function_calls:
+                tool_result = execute_tool(call.name, call.args, conversation_id)
+                
+                conversation_messages.append({
+                    "role": "user", # Function responses are sent as 'user' or 'function' role depending on exact SDK spec
+                    "parts": [
+                        types.Part.from_function_response(
+                            name=call.name,
+                            response={"result": tool_result}
+                        )
+                    ]
+                })
+            # 3. Loop iterates, sending updated history to model
+        else:
+            # 4. Model outputs final text
+            return response.text
