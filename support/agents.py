@@ -5,11 +5,8 @@ from .tools import get_order_details, get_refund_history, check_delivery_status
 from .models import Conversation, Message, AgentLog
 
 ## Initialize the client
-client = genai.Client(
-    api_key=settings.GEMINI_API_KEY
-)
-
-model = settings.GEMINI_MODEL
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
+gemini_model = settings.GEMINI_MODEL
 
 
 ## SUPPORT SYSTEM PROMPT    --->   Maya's job description
@@ -39,8 +36,6 @@ Important rules:
 """
 
 ## SUPPORT TOOLS     -->>    Tools schemas, that AI agents will read
-from google.genai import types
-
 SUPPORT_TOOLS = [
     types.Tool(
         function_declarations=[
@@ -123,15 +118,6 @@ SUPPORT_TOOLS = [
 ]
 
 
-
-# Delete the previous dictionary definitions. Use this exact structure:
-SUPPORT_TOOLS_new = [
-    get_order_details,
-    get_refund_history,
-    check_delivery_status,
-]
-
-
 ## execute_tool()  --> bridge between gemini and python functions
 
 def execute_tool(tool_name, tool_input, conversation_id=None):
@@ -169,49 +155,67 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
 ## Agent Loop  -->  while loop that loops until the task is done.
 
 def run_support_agent(user_message, conversation_id, order_id, user_id):
-    # PHASE 1: Build conversational state from database
     conv = Conversation.objects.get(id=conversation_id)
 
     # Format history strictly according to SDK requirements
     conversation_messages= []
     for msg in conv.message.order_by("created_at"):
-        conversation_messages.append({
-            "role": "model" if msg.role == "agent" else "user",
-            "parts": [{"text": msg.content}]
-        })
-        
+        role = "model" if msg.role == "agent" else msg.role
+        conversation_messages.append(
+            types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=msg.content)]
+            )
+        )
     while True:
         response = client.models.generate_content(
-            model=model,
+            model=gemini_model,
             contents=conversation_messages,
             config=types.GenerateContentConfig(
-                system_instruction=SUPPORT_SYSTEM_PROMPT + f"\n\nContext: This conversation is about Order #{order_id}, user #{user_id}",
-                max_output_tokens=1024,
+                system_instruction=SUPPORT_SYSTEM_PROMPT + f"\n\nContext: This conversation is about Order #{order_id}, user: {user_id}",
                 tools=SUPPORT_TOOLS,
-            ),
+                max_output_tokens=1024,
+            )
         )
         
         if response.function_calls:
-            # 1. Append model's tool call request to history
-            conversation_messages.append({
-                "role": "model",
-                "parts": response.parts
-            })
-            
-            # 2. Execute tools and append results
+            conversation_messages.append(response.candidates[0].content)
+
+            tool_response_parts = []
             for call in response.function_calls:
-                tool_result = execute_tool(call.name, call.args, conversation_id)
+                event = {"type": "tool_call", "message": f"Calling tool {call.name} with {call.args}"}
+               
                 
-                conversation_messages.append({
-                    "role": "user", # Function responses are sent as 'user' or 'function' role depending on exact SDK spec
-                    "parts": [
-                        types.Part.from_function_response(
-                            name=call.name,
-                            response={"result": tool_result}
-                        )
-                    ]
-                })
-            # 3. Loop iterates, sending updated history to model
+                AgentLog.objects.create(conversation=conv, event_type="tool_call", message=f"Calling tool {call.name} with {call.args}")
+
+                result = execute_tool(call.name, call.args, conversation_id)
+
+                event = {"type": "tool_result", "message": f"{call.name} returned: {str(result)[:200]}"}
+               
+
+                AgentLog.objects.create(conversation=conv, event_type="tool_result", message=f"{call.name} returned: {str(result)[:200]}")
+                print('executing tool==>', call.name)
+                print('call.args===>', call.args)
+
+                tool_response_parts.append(
+                    types.Part.from_function_response(
+                        name=call.name,
+                        response={"result": str(result)}
+                    )
+                )
+
+            conversation_messages.append(
+                types.Content(
+                    role="user",
+                    parts=tool_response_parts
+                )
+            )
+
         else:
-            # 4. Model outputs final text
-            return response.text
+            final_reply = response.text
+            event = {"type": "final", "message": final_reply}
+           
+            AgentLog.objects.create(conversation=conv, event_type="final", message=final_reply)
+
+            print("Running raw implementation")
+            return final_reply
