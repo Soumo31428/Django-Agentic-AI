@@ -35,6 +35,30 @@ Important rules:
 
 """
 
+MANAGER_SYSTEM_PROMPT = """
+You are a senior support manager at CoolBreeze AC.
+A support agent has escalated a customer case to you for a refund decision.
+
+Your responsibilities:
+- Review the case summary carefully
+- Consider the customer's refund history
+- Make a fair and final refund decision
+- Give a clear reason for your decision
+
+Your decision options:
+- Approve refund — if the case is genuine and within policy
+- Deny refund — if the case is suspicious or outside policy
+- Escalate to risk team — if you suspect fraud
+
+Important rules:
+- Be fair but firm
+- Base decision on facts — not emotions
+- Always give a specific reason for your decision
+- Keep your response concise and professional
+"""
+
+
+
 ## SUPPORT TOOLS     -->>    Tools schemas, that AI agents will read
 SUPPORT_TOOLS = [
     types.Tool(
@@ -116,8 +140,28 @@ SUPPORT_TOOLS = [
         ]
     )
 ]
-
-
+'''
+MANAGER_TOOLS = [
+    types.Tool(
+        function_declarations=[
+            types.FunctionDeclaration(
+                name="assess_fraud_risk",
+                description="Consult the risk agent to assess fraud risk for a customer. Use this when refund request looks suspicious or customer has multiple refund requests. Pass the user_id to get a risk verdict.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "user_id": types.Schema(
+                            type="INTEGER",
+                            description="The user ID to assess fraud risk for"
+                        )
+                    },
+                    required=["user_id"]
+                )
+            )
+        ]
+    )
+]
+'''
 ## execute_tool()  --> bridge between gemini and python functions
 
 def execute_tool(tool_name, tool_input, conversation_id=None):
@@ -129,13 +173,14 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
     
     if tool_name == "check_delivery_status":
         return check_delivery_status(tool_input["tracking_number"], tool_input["carrier"])
-    '''
+    
     if tool_name == "escalate_to_manager":
             case_summary = tool_input["case_summary"]
             print("escalating to manager=====>", case_summary)
             decision = run_manager_agent(case_summary, conversation_id)
             print("decision===>", decision)
             return decision
+    '''
         
         if tool_name == 'assess_fraud_risk':
             user_id = tool_input['user_id']
@@ -218,4 +263,64 @@ def run_support_agent(user_message, conversation_id, order_id, user_id):
             AgentLog.objects.create(conversation=conv, event_type="final", message=final_reply)
 
             print("Running raw implementation")
-            return final_reply
+            return final_reply 
+
+def run_manager_agent(case_summary, conversation_id):
+    conv = Conversation.objects.get(id=conversation_id)
+
+    event = {"type": "manager", "message": f"Case received for review: {case_summary[:200]}"}
+    #publish(conversation_id, event)
+
+    AgentLog.objects.create(conversation=conv, event_type="manager", message=f"Case received for review: {case_summary[:200]}")
+
+    manager_messages = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=case_summary)]             # Here Maya is a task giver "User".
+        )
+    ]
+
+    while True:
+        response = client.models.generate_content(
+            model=gemini_model,
+            contents=manager_messages,
+            config=types.GenerateContentConfig(
+                system_instruction=MANAGER_SYSTEM_PROMPT,
+                #tools=MANAGER_TOOLS,
+                max_output_tokens=1024,
+            )
+        )
+
+        if response.function_calls:
+            manager_messages.append(response.candidates[0].content)
+
+            tool_response_parts = []
+            for call in response.function_calls:
+                event = {"type": "manager", "message": "Consulting risk agent for fraud assessment..."}
+                #publish(conversation_id, event)
+
+                AgentLog.objects.create(conversation=conv, event_type="manager", message="Consulting risk agent for fraud assessment...")
+
+                result = execute_tool(call.name, call.args, conversation_id)
+
+                tool_response_parts.append(
+                    types.Part.from_function_response(
+                        name=call.name,
+                        response={"result": str(result)}
+                    )
+                )
+
+            manager_messages.append(
+                types.Content(
+                    role="user",
+                    parts=tool_response_parts
+                )
+            )
+        else:
+            decision = response.text
+
+            event = {"type": "manager", "message": f"Decision: {decision[:200]}"}
+            #publish(conversation_id, event)
+
+            AgentLog.objects.create(conversation=conv, event_type="manager", message=f"Decision: {decision[:200]}")
+            return decision
