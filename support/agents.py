@@ -276,14 +276,14 @@ def run_support_agent(user_message, conversation_id, order_id, user_id):
             for call in response.function_calls:
                 event = {"type": "tool_call", "message": f"Calling tool {call.name} with {call.args}"}
                
-                
+                ## Log the tool call
                 AgentLog.objects.create(conversation=conv, event_type="tool_call", message=f"Calling tool {call.name} with {call.args}")
 
                 result = execute_tool(call.name, call.args, conversation_id)
 
                 event = {"type": "tool_result", "message": f"{call.name} returned: {str(result)[:200]}"}
                
-
+                #Log the tool result
                 AgentLog.objects.create(conversation=conv, event_type="tool_result", message=f"{call.name} returned: {str(result)[:200]}")
                 print('executing tool==>', call.name)
                 print('call.args===>', call.args)
@@ -305,7 +305,7 @@ def run_support_agent(user_message, conversation_id, order_id, user_id):
         else:
             final_reply = response.text
             event = {"type": "final", "message": final_reply}
-           
+            # Log the final reply
             AgentLog.objects.create(conversation=conv, event_type="final", message=final_reply)
 
             print("Running raw implementation")
@@ -372,8 +372,8 @@ def run_manager_agent(case_summary, conversation_id):
             return decision
 
     
-
 def run_risk_agent(user_id, conversation_id):
+    ## Log assessment started
     conv = Conversation.objects.get(id=conversation_id)
 
     event = {"type": "risk", "message": f"Starting fraud assessment for user {user_id}"}
