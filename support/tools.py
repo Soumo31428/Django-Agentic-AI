@@ -12,6 +12,7 @@ def get_order_details(order_id: int) -> dict:
             "amount": str(order.amount),
             "status": order.status,
             "carrier": order.carrier,
+            "tracking_number": order.tracking_number,
             "delivery": order.delivery,
             "ordered_on": order.created_at.strftime("%d %b %Y"),  #25 July 2026
             "days_since_order": (timezone.now() - order.created_at).days,
