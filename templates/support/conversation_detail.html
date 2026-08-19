@@ -154,7 +154,7 @@
     }
 
     const conversationId = {{ conversation.id }};
-    const source = new EventSource(`/support/dashboard/stream/${conversationId}/`); // establishing SSE connection
+    const source = new EventSource("{% url 'conversation_stream' conversation.id %}"); // establishing SSE connection
 
     source.onmessage = (e) => {
       const event = JSON.parse(e.data);

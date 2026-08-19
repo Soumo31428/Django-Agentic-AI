@@ -4,7 +4,7 @@ import queue
 subscribers = {}   # {25: [QUEUE_1, QUEUE_2], 24: [QUEUE_3]}
 
 def subscribe(conversation_id):
-    q = queue.Queue   # create an empty queue for this browser tab
+    q = queue.Queue()   # create an empty queue for this browser tab
 
     if conversation_id not in subscribers:
         subscribers[conversation_id] = []
