@@ -1,7 +1,7 @@
 from google import genai
 from google.genai import types
 from django.conf import settings
-from .tools import get_order_details, get_refund_history, check_delivery_status, get_customer_risk_profile
+from .tools import get_order_details, get_refund_history, check_delivery_status, get_customer_risk_profile,search_knowledge_base
 from .models import Conversation, Message, AgentLog
 from .event_queue import DONE, publish
 
@@ -240,8 +240,8 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
     if tool_name == 'get_customer_risk_profile':
         return get_customer_risk_profile(tool_input['user_id'])
     
-    #if tool_name == "search_knowledge_base":
-        #return search_knowledge_base(tool_input["query"])
+    if tool_name == "search_knowledge_base":
+        return search_knowledge_base(tool_input["query"])
 
 
 ## Agent Loop  -->  while loop that loops until the task is done.
