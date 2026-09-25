@@ -9,6 +9,7 @@ from orders.models import Order
 from support.agents import run_support_agent
 from .models import Conversation, Message
 from django.contrib.admin.views.decorators import staff_member_required
+from .langchain_agents import run_support_agent_langchain
 
 
 # Create your views here.
@@ -35,7 +36,8 @@ def chat(request, order_id):
         publish(conversation.id, event)
         ## send user message and conversation to LLM
         try:
-            reply = run_support_agent(user_message, conversation.id,order.id, request.user.id)
+            #reply = run_support_agent(user_message, conversation.id,order.id, request.user.id)
+            reply = run_support_agent_langchain(user_message, conversation.id,order.id, request.user.id)
         except Exception as e:
             return JsonResponse({"error": f"Agent error: {e}"}, status=500)
         ## store the LLM reply

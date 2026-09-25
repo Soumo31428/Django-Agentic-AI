@@ -13,13 +13,10 @@ from langchain.agents import create_agent
 
 ## Initialize the client
 llm = ChatGoogleGenerativeAI(model=settings.GEMINI_MODEL, api_key=settings.GEMINI_API_KEY)
-
 SUPPORT_TOOLS = [get_order_details, get_refund_history, check_delivery_status, search_knowledge_base]
-
 checkpointer = InMemorySaver()
 
-
-
+ 
 def run_support_agent_langchain(user_message, conversation_id, order_id, user_id):
     conv = Conversation.objects.get(id=conversation_id)
 
@@ -56,13 +53,14 @@ def run_support_agent_langchain(user_message, conversation_id, order_id, user_id
         AgentLog.objects.create(conversation=conv, event_type="tool_result", message=f"{tool_name} returned: {str(result.content)[:200]}")
         return result
 
+
     support_agent = create_agent(
         model=llm,
         tools=SUPPORT_TOOLS + [escalate_to_manager],
         system_prompt=SUPPORT_SYSTEM_PROMPT,
         checkpointer=checkpointer,
         middleware=[log_tool_calls_middleware]
-    )
+        )
 
     result = support_agent.invoke(
         {"messages": [{"role": "user", "content": contextual_message}]},
